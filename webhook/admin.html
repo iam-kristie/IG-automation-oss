@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IG Automations</title>
+<!-- Inline SVG favicon: ascending bar chart in dashboard accent purple. No
+     external file or server route needed; modern browsers (Safari 18+,
+     Chrome, Firefox) render this directly. The rounded square + chart
+     glyph reads clearly even at 16×16 in pinned tabs. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%236366f1'/%3E%3Crect x='14' y='38' width='8' height='14' rx='1.5' fill='white'/%3E%3Crect x='28' y='28' width='8' height='24' rx='1.5' fill='white'/%3E%3Crect x='42' y='16' width='8' height='36' rx='1.5' fill='white'/%3E%3C/svg%3E">
+<style>
+  :root { --bg: #0a0a0a; --card: #141414; --border: #2a2a2a; --text: #e5e5e5; --muted: #888; --accent: #6366f1; --accent2: #818cf8; --green: #22c55e; --red: #ef4444; --yellow: #eab308; --orange: #f97316; --cyan: #06b6d4; --pink: #ec4899; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 24px; max-width: 1280px; margin: 0 auto; font-size: 15px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 20px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font-size: 15px; transition: all .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Date range bar */
+  .date-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .date-bar input[type="date"] { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 14px; }
+  .date-bar input[type="date"]:focus { outline: none; border-color: var(--accent); }
+  .date-bar span { color: var(--muted); font-size: 14px; }
+  .preset-btn { padding: 5px 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); color: var(--muted); cursor: pointer; font-size: 13px; transition: all .15s; }
+  .preset-btn:hover, .preset-btn.active { border-color: var(--accent); color: var(--accent2); background: #6366f115; }
+  .compare-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; margin-left: 8px; }
+  .compare-toggle input { accent-color: var(--accent); }
+  .compare-row { display: none; align-items: center; gap: 12px; margin-bottom: 16px; padding: 10px 14px; background: #6366f108; border: 1px dashed var(--accent); border-radius: 8px; }
+  .compare-row.show { display: flex; }
+
+  /* KPI cards */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+  .kpi-grid-rates { grid-template-columns: repeat(5, 1fr); margin-bottom: 20px; }
+  @media (max-width: 800px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-grid-rates { grid-template-columns: repeat(2, 1fr); }
+  }
+  .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; position: relative; }
+  .kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .kpi-change { font-size: 13px; margin-top: 2px; }
+  .kpi-change.up { color: var(--green); }
+  .kpi-change.down { color: var(--red); }
+  .kpi-change.neutral { color: var(--muted); }
+  .kpi-tag { position: absolute; top: 8px; right: 10px; font-size: 10px; color: var(--accent2); background: #6366f120; padding: 2px 6px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Two-column layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .card-title select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; }
+
+  /* Type breakdown table */
+  .type-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .type-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+  .type-table td { padding: 10px 10px; border-bottom: 1px solid var(--border); }
+  .type-table tr:hover { background: #1a1a1a; }
+
+  /* Age chart */
+  .age-chart { position: relative; min-height: 220px; }
+  .age-chart svg { width: 100%; height: 100%; }
+  .age-bars { display: flex; align-items: flex-end; gap: 20px; height: 200px; padding: 0 10px; }
+  .age-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .age-bar-pair { display: flex; gap: 4px; align-items: flex-end; width: 100%; justify-content: center; }
+  .age-bar { width: 36px; border-radius: 4px 4px 0 0; min-height: 2px; position: relative; cursor: pointer; transition: opacity .15s; }
+  .age-bar:hover { opacity: 0.8; }
+  .age-bar .age-tip { display: none; position: absolute; top: -32px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 3px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; z-index: 10; }
+  .age-bar:hover .age-tip { display: block; }
+  .age-bar-val { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 2px; }
+  .age-bar-label { font-size: 13px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+  /* Milestone table */
+  .milestone-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .milestone-table th { text-align: left; padding: 10px 10px; color: var(--muted); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); letter-spacing: 0.3px; }
+  .milestone-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .milestone-table tr:hover { background: #1a1a1a; }
+  .ms-cell { line-height: 1.6; }
+  .ms-cell .reach { color: var(--text); }
+  .ms-cell .eng { color: var(--text); }
+  .ms-cell .saves { color: var(--text); }
+  .ms-label { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .ms-na { color: #444; }
+  .ms-above { background: #22c55e08; }
+  .ms-below { background: #ef444408; }
+
+  /* Bar chart */
+  .bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 180px; padding-top: 8px; }
+  .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height .3s; position: relative; cursor: pointer; }
+  .bar:hover::after { content: attr(data-tooltip); position: absolute; top: -28px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 3px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; z-index: 10; }
+  .bar-label { font-size: 12px; color: var(--muted); writing-mode: vertical-rl; max-height: 55px; overflow: hidden; }
+  .legend { display: flex; gap: 16px; margin-top: 12px; justify-content: center; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+
+  /* Type badges */
+  .type-badge { padding: 3px 10px; border-radius: 10px; font-size: 13px; font-weight: 500; }
+  .type-badge.reel { background: #6366f120; color: var(--accent2); }
+  .type-badge.carousel { background: #22c55e20; color: var(--green); }
+  .type-badge.photo { background: #eab30820; color: var(--yellow); }
+
+  /* Keywords & DM Log (kept from original) */
+  .rules-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+  .rule-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: flex; gap: 16px; align-items: flex-start; }
+  .rule-keyword { font-size: 20px; font-weight: 700; font-family: monospace; color: var(--accent2); min-width: 80px; }
+  /* min-width:0 lets this flex item shrink below its content width, so long
+     unbreakable URLs in the message wrap instead of pushing the actions
+     off-screen (and the whole page into horizontal scroll) on mobile. */
+  .rule-body { flex: 1; min-width: 0; }
+  .rule-message { font-size: 14px; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; margin-top: 4px; background: #1a1a1a; padding: 8px 12px; border-radius: 6px; max-height: 80px; overflow-y: auto; }
+  .rule-actions { display: flex; gap: 8px; align-items: center; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: #333; cursor: pointer; position: relative; transition: background .2s; }
+  .toggle.on { background: var(--green); }
+  .toggle::after { content: ''; width: 16px; height: 16px; border-radius: 50%; background: #fff; position: absolute; top: 2px; left: 2px; transition: left .2s; }
+  .toggle.on::after { left: 18px; }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; transition: all .15s; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.danger { color: var(--red); }
+  .btn.danger:hover { background: #ef444420; border-color: var(--red); }
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000a; z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 480px; max-width: 90vw; }
+  .modal h2 { font-size: 16px; margin-bottom: 16px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+  .form-group input, .form-group textarea { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit; }
+  .form-group textarea { height: 100px; resize: vertical; }
+  .form-group input:focus, .form-group textarea:focus { outline: none; border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .refresh-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .refresh-btn:hover { color: var(--text); }
+  .log-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .log-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 12px; text-transform: uppercase; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .log-table th.sortable { cursor: pointer; user-select: none; }
+  .log-table th.sortable:hover { color: var(--text); }
+  .log-table th .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.4; }
+  .log-table th.sort-asc .sort-arrow, .log-table th.sort-desc .sort-arrow { opacity: 1; color: var(--accent2); }
+  .log-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .log-table tr.tr-failed td  { background: #ef444410; }
+  .log-table tr.tr-pending td { background: #eab30808; }
+  .log-filter-row td { padding: 4px 6px; border-bottom: 1px solid var(--border); background: #0f0f0f; }
+  .log-filter-row input, .log-filter-row select { width: 100%; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 12px; }
+  .log-filter-row input:focus, .log-filter-row select:focus { outline: none; border-color: var(--accent); }
+  .status-badge { padding: 2px 8px; border-radius: 8px; font-size: 12px; font-weight: 500; }
+  .status-badge.failed    { background: #ef444420; color: var(--red); }
+  .status-badge.pending   { background: #eab30820; color: var(--yellow); }
+  .status-badge.delivered { background: #6366f120; color: var(--accent2); }
+  .status-badge.read      { background: #22c55e20; color: var(--green); }
+  .status-badge.legacy    { background: #ffffff10; color: var(--muted); }
+  .failure-reason { font-size: 12px; color: var(--red); }
+  .replies-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .reply-row { display: flex; gap: 6px; align-items: center; }
+  .reply-row input { flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+  .reply-row input:focus { outline: none; border-color: var(--accent); }
+  .btn-icon { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); background: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .btn-icon:hover { color: var(--red); border-color: var(--red); }
+  .replies-hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .rule-replies-badge { font-size: 12px; color: var(--cyan); margin-top: 4px; }
+  .empty-state { text-align: center; color: var(--muted); padding: 40px; font-size: 15px; }
+  .loading { text-align: center; color: var(--muted); padding: 40px; }
+
+  /* Horizontal-scroll wrapper for wide data tables so they never force the
+     whole page to scroll sideways on small screens. -webkit-overflow-scrolling
+     gives momentum scroll on iOS. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Per-metric engagement charts: one column per content type. Was an inline
+     grid; promoted to a class so it can collapse to a single column on phones. */
+  .eng-charts-grid { display: grid; gap: 24px; }
+
+  /* ── Mobile ─────────────────────────────────────────────────────────── */
+  @media (max-width: 800px) {
+    body { padding: 16px; font-size: 14px; }
+    h1 { font-size: 20px; }
+    .card { padding: 16px; }
+    /* Tabs scroll horizontally instead of wrapping into a broken strip */
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tab { white-space: nowrap; }
+    /* Engagement-rate KPI row already drops to 2-up at 800px (see above) */
+    .milestone-table, .type-table, .log-table { min-width: 640px; }
+    /* Stack the multi-type chart columns so each chart is full-width.
+       !important is required: the JS sets grid-template-columns as an inline
+       style (dynamic column count), which would otherwise win the cascade. */
+    .eng-charts-grid { grid-template-columns: 1fr !important; gap: 16px; }
+    /* Stack keyword rule cards vertically so the toggle/Edit/Delete actions
+       are never pushed off-screen by a long message. */
+    .rule-card { flex-direction: column; gap: 10px; }
+    .rule-actions { width: 100%; justify-content: flex-end; }
+  }
+  @media (max-width: 480px) {
+    .kpi-grid, .kpi-grid-rates { grid-template-columns: 1fr 1fr; }
+    .kpi-value { font-size: 22px; }
+    /* Date bar: presets + controls each take a comfortable tap target */
+    .preset-btn { padding: 8px 14px; }
+    .compare-toggle { margin-left: 0; }
+    .refresh-btn { padding: 8px 12px; }
+    /* Larger tap target for the keyword on/off switch */
+    .toggle { width: 44px; height: 24px; }
+    .toggle::after { width: 20px; height: 20px; }
+    .toggle.on::after { left: 22px; }
+  }
+</style>
+</head>
+<body>
+<h1>IG Automations</h1>
+<p class="subtitle">Metrics &amp; comment-to-DM automation</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('metrics')">Metrics</div>
+  <div class="tab" onclick="showTab('keywords')">Keyword Automations</div>
+  <div class="tab" onclick="showTab('log')">DM Log</div>
+</div>
+
+<!-- METRICS PANEL -->
+<div id="metrics" class="panel active">
+  <!-- Date range bar -->
+  <div class="date-bar">
+    <input type="date" id="dateFrom">
+    <span>to</span>
+    <input type="date" id="dateTo">
+    <div style="display:flex;gap:4px">
+      <button class="preset-btn" onclick="setPreset(7,event)">7d</button>
+      <button class="preset-btn" onclick="setPreset(14,event)">14d</button>
+      <button class="preset-btn active" onclick="setPreset(30,event)">30d</button>
+      <button class="preset-btn" onclick="setPreset(90,event)">90d</button>
+      <button class="preset-btn" onclick="setPreset(0,event)">All</button>
+    </div>
+    <label class="compare-toggle">
+      <input type="checkbox" id="compareCheck" onchange="toggleCompare()"> Compare
+    </label>
+    <button class="refresh-btn" onclick="loadDashboard()">Refresh</button>
+  </div>
+  <div class="compare-row" id="compareRow">
+    <span style="color:var(--muted);font-size:12px">vs</span>
+    <input type="date" id="compFrom">
+    <span style="color:var(--muted);font-size:12px">to</span>
+    <input type="date" id="compTo">
+    <button class="preset-btn" onclick="autoCompare()">Auto (prev period)</button>
+  </div>
+
+  <!-- KPI cards: Row 1 = account & volume (4×2), Row 2 = engagement rates (1×5) -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="loading">Loading...</div>
+  </div>
+  <div class="kpi-grid kpi-grid-rates" id="kpiGridRates">
+    <div class="loading">Loading...</div>
+  </div>
+
+  <!-- Followers trend (only when account data exists) -->
+  <div class="card" id="followersCard" style="margin-bottom:20px;display:none">
+    <div class="card-title">Followers Growth</div>
+    <div id="followersChart" style="height:160px;position:relative">
+      <div id="followersTip" style="display:none;position:absolute;background:#1e1e1e;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;pointer-events:none;z-index:100;white-space:nowrap;color:var(--text)"></div>
+    </div>
+  </div>
+
+  <!-- Performance by Content Type — engagement details now live in the KPI rate row + milestone Table B -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Performance by Content Type</div>
+    <div class="table-scroll">
+      <table class="type-table" id="typeTable">
+        <thead><tr><th>Type</th><th>Posts</th><th>Avg Reach</th><th>Avg Views</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Age milestone — two stacked tables: Volume (V/R/E) + Engagement Rates (5 rates per cell) -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Volume by Age</div>
+    <div class="table-scroll">
+      <table class="milestone-table" id="milestoneTableVolume">
+        <thead><tr><th>Post</th><th>Type</th><th>Day 1</th><th>Day 3</th><th>Day 7</th><th>Day 30</th><th>Lifetime</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title">Engagement Rates by Age <span style="font-size:13px;font-weight:400;color:var(--muted)">— green/red vs period average for each post type. Skip rate inverted (lower is better).</span></div>
+    <div class="table-scroll">
+      <table class="milestone-table" id="milestoneTableRates">
+        <thead><tr><th>Post</th><th>Type</th><th>Day 1</th><th>Day 3</th><th>Day 7</th><th>Day 30</th><th>Lifetime</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Engagement charts (all metrics) -->
+  <div id="engChartsContainer"></div>
+</div>
+
+<!-- KEYWORDS PANEL -->
+<div id="keywords" class="panel">
+  <div class="header-row">
+    <span></span>
+    <button class="btn primary" onclick="openModal()">+ Add Keyword</button>
+  </div>
+  <div class="rules-list" id="rulesList"></div>
+
+  <!-- Global comment replies -->
+  <div class="card" style="margin-top:24px">
+    <div class="card-title">
+      Comment Replies
+      <span style="font-size:13px;font-weight:400;color:var(--muted)">One random reply is posted publicly after every successful DM</span>
+    </div>
+    <div class="replies-list" id="globalRepliesList"></div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <button class="btn" type="button" onclick="addGlobalReply()">＋ Add Reply</button>
+      <button class="btn primary" onclick="saveGlobalReplies()">Save</button>
+      <span id="repliesSaveStatus" style="font-size:13px;color:var(--green);display:none">Saved ✓</span>
+    </div>
+    <div class="replies-hint" id="globalRepliesHint" style="margin-top:6px"></div>
+  </div>
+</div>
+
+<!-- DM LOG PANEL -->
+<div id="log" class="panel">
+  <div class="header-row">
+    <span></span>
+    <button class="refresh-btn" onclick="loadLog()">Refresh</button>
+  </div>
+  <div id="logContent"></div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">Add Keyword Automation</h2>
+    <div class="form-group">
+      <label>Keyword</label>
+      <input type="text" id="kwInput" placeholder="e.g. GUIDE">
+    </div>
+    <div class="form-group">
+      <label>DM Message</label>
+      <textarea id="msgInput" placeholder="The message to send when someone comments this keyword..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveRule()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- State ---
+let summaryData = null;
+let compareData = null;
+let logEntries = [];   // flat array of { key, ...fields } for the DM log
+let logSort = { col: 'time', dir: 'desc' };
+let logFilters = { username: '', status: 'all', post_type: 'all' };
+
+// --- Engagement-rate config ---
+// Order matches IG's mobile insights priority. `short` is the row label used
+// in the milestone Table B label column. `invert` flips color logic for skip
+// rate (lower = better hook). `reelsOnly` hides the rate for non-Reel posts.
+// Single source of truth — both Table B's data cells and the row labels are
+// derived from this; do not maintain a parallel labels array elsewhere.
+const RATES = [
+  { key: 'skip_rate',    short: 'Skip', invert: true,  reelsOnly: true },
+  { key: 'share_rate',   short: 'Sh',   invert: false, reelsOnly: false },
+  { key: 'like_rate',    short: 'Lk',   invert: false, reelsOnly: false },
+  { key: 'save_rate',    short: 'Sv',   invert: false, reelsOnly: false },
+  { key: 'comment_rate', short: 'Cm',   invert: false, reelsOnly: false },
+];
+
+// --- DM Log status badges ---
+// Effective-status → label + tooltip. Module-level so renderLog doesn't
+// rebuild this on every sort/filter interaction.
+const STATUS_LABELS = {
+  failed:    { label: 'Failed',    tip: 'Synchronous error from Meta — see Failure Reason column.' },
+  pending:   { label: 'Pending',   tip: 'Meta accepted the API request, but no echo received yet. After ~5 min this likely means the recipient has DMs disabled and the message was silently dropped.' },
+  delivered: { label: 'Delivered', tip: 'Echo received — Meta emitted the DM into the recipient’s conversation thread.' },
+  read:      { label: 'Read',      tip: 'Recipient opened the DM (read receipt webhook).' },
+  legacy:    { label: 'Legacy',    tip: 'Pre-tracking record. We logged this as "sent" before delivery webhooks were wired up; actual delivery state is unknown.' },
+};
+
+// --- Tab navigation ---
+function showTab(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelector(`.tab[onclick="showTab('${id}')"]`).classList.add('active');
+  if (id === 'keywords') loadRules();
+  if (id === 'metrics') loadDashboard();
+  if (id === 'log') loadLog();
+}
+
+// --- Date range ---
+function initDates() {
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(from.getDate() - 30);
+  document.getElementById('dateTo').value = fmt(today);
+  document.getElementById('dateFrom').value = fmt(from);
+}
+
+function fmt(d) { return d.toISOString().slice(0, 10); }
+
+function setPreset(days, e) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (e) e.target.classList.add('active');
+  const to = new Date();
+  document.getElementById('dateTo').value = fmt(to);
+  if (days === 0) {
+    document.getElementById('dateFrom').value = '2020-01-01';
+  } else {
+    const from = new Date(to);
+    from.setDate(from.getDate() - days);
+    document.getElementById('dateFrom').value = fmt(from);
+  }
+  loadDashboard();
+}
+
+function toggleCompare() {
+  const on = document.getElementById('compareCheck').checked;
+  document.getElementById('compareRow').classList.toggle('show', on);
+  // Compare-mode deltas now render inline on the KPI tiles (no separate panel).
+  if (on) autoCompare();
+  else loadDashboard();
+}
+
+function autoCompare() {
+  const from = new Date(document.getElementById('dateFrom').value);
+  const to = new Date(document.getElementById('dateTo').value);
+  const days = Math.round((to - from) / 86400000);
+  const bTo = new Date(from);
+  bTo.setDate(bTo.getDate() - 1);
+  const bFrom = new Date(bTo);
+  bFrom.setDate(bFrom.getDate() - days);
+  document.getElementById('compFrom').value = fmt(bFrom);
+  document.getElementById('compTo').value = fmt(bTo);
+  loadDashboard();
+}
+
+// --- Dashboard loader ---
+async function loadDashboard() {
+  const from = document.getElementById('dateFrom').value;
+  const to = document.getElementById('dateTo').value;
+  const comparing = document.getElementById('compareCheck').checked;
+
+  try {
+    if (comparing) {
+      const bFrom = document.getElementById('compFrom').value;
+      const bTo = document.getElementById('compTo').value;
+      const res = await fetch(`/api/snapshots/compare?a_from=${from}&a_to=${to}&b_from=${bFrom}&b_to=${bTo}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      compareData = await res.json();
+      summaryData = compareData.period_a;
+      renderKPIs(summaryData, compareData);
+    } else {
+      const res = await fetch(`/api/snapshots/summary?from=${from}&to=${to}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      summaryData = await res.json();
+      compareData = null;
+
+      // Fallback: if snapshot store is completely empty (first run), fetch live
+      if (!summaryData.posts.length) {
+        const allRes = await fetch('/api/snapshots/summary');
+        const allData = await allRes.json();
+        if (!allData.posts.length) {
+          try {
+            const liveRes = await fetch('/api/metrics');
+            if (liveRes.ok) {
+              const liveData = await liveRes.json();
+              if (liveData.length) {
+                summaryData = convertLiveToSummary(liveData);
+                summaryData._liveFallback = true;
+              }
+            }
+          } catch {}
+        }
+      }
+
+      renderKPIs(summaryData, null);
+      if (summaryData._liveFallback) {
+        document.getElementById('kpiGrid').insertAdjacentHTML('beforebegin',
+          '<div style="color:var(--yellow);font-size:13px;margin-bottom:12px">No snapshot data yet — showing live data from IG API (date filter not applied). Run the cron job to start collecting snapshots.</div>');
+      }
+    }
+
+    renderTypeTable(summaryData, compareData);
+    renderFollowersChart(summaryData);
+    renderMilestoneTable(summaryData);
+    renderAllEngCharts(summaryData);
+  } catch (e) {
+    document.getElementById('kpiGrid').innerHTML = `<div class="empty-state">Failed to load data: ${escapeHtml(e.message)}</div>`;
+    // Clear the rates grid too — without this, a failed reload would leave the
+    // rates row showing stale numbers next to the error message in the volume row.
+    document.getElementById('kpiGridRates').innerHTML = '';
+  }
+}
+
+// --- KPI Cards ---
+function renderKPIs(data, comp) {
+  const d = data;
+  const ch = comp?.changes;
+
+  // change: numeric delta (or null/undefined to skip)
+  // suffix: 'pp' | '%' | '' — display unit
+  // invert: if true, positive change is RED (worse); used by skip rate
+  // tag: optional small badge in top-right (e.g. 'Reels')
+  function card(label, value, change, suffix = '', invert = false, tag = '') {
+    let changeHtml = '';
+    if (change !== null && change !== undefined) {
+      const isUp = change > 0, isDown = change < 0;
+      const goodDir = invert ? isDown : isUp;
+      const badDir  = invert ? isUp   : isDown;
+      const cls = goodDir ? 'up' : badDir ? 'down' : 'neutral';
+      const arrow = isUp ? '&uarr;' : isDown ? '&darr;' : '';
+      changeHtml = `<div class="kpi-change ${cls}">${arrow} ${Math.abs(change)}${suffix} vs prev</div>`;
+    }
+    const tagHtml = tag ? `<div class="kpi-tag">${tag}</div>` : '';
+    return `<div class="kpi-card">${tagHtml}<div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${changeHtml}</div>`;
+  }
+
+  const fmtRate = (r) => r == null ? '--' : r.toFixed(1) + '%';
+
+  // All account snapshots (unfiltered — used for the latest absolute count)
+  const acctDates = Object.keys(d.account || {}).sort();
+  const latestAcct = acctDates.length ? d.account[acctDates[acctDates.length - 1]] : null;
+
+  // Account-derived, period-scoped metrics. These live here rather than in the
+  // backend `changes` object because they need the account snapshots —
+  // acctMetrics() lets us run the same logic on period B for the compare deltas.
+  function acctMetrics(s) {
+    if (!s) return { newFollows: null, profileViews: null };
+    const dates = Object.keys(s.account || {}).sort();
+    const f = s.period?.from || '', t = s.period?.to || '';
+    const pd = dates.filter(dt => (!f || dt >= f) && (!t || dt <= t));
+    const first = pd.length ? s.account[pd[0]] : null;
+    const last  = pd.length ? s.account[pd[pd.length - 1]] : null;
+    return {
+      // New follows = follower delta across the period
+      newFollows: first && last && pd.length > 1 ? last.followers_count - first.followers_count : null,
+      // Profile views = sum of each day's snapshot value in the period
+      profileViews: pd.length ? pd.reduce((sum, dt) => sum + (s.account[dt].profile_views || 0), 0) : null,
+    };
+  }
+  // Percent change, mirroring the backend's pctChange (null when no base value)
+  const pct = (cur, prev) => (prev ? +(((cur - prev) / prev) * 100).toFixed(1) : null);
+
+  const aMetrics = acctMetrics(d);
+  const bMetrics = comp ? acctMetrics(comp.period_b) : null;
+  const newFollows = aMetrics.newFollows;
+  const periodProfileViews = aMetrics.profileViews;
+
+  // Compare deltas for the three account/volume cards the backend `changes`
+  // object doesn't cover. New Follows is a count delta (both sides are already
+  // deltas); Profile Views and Total Reach are percent changes like Total Views.
+  const newFollowsChange = (newFollows != null && bMetrics?.newFollows != null)
+    ? newFollows - bMetrics.newFollows : null;
+  const profileViewsChange = (periodProfileViews != null && bMetrics?.profileViews != null)
+    ? pct(periodProfileViews, bMetrics.profileViews) : null;
+  const totalReachChange = comp ? pct(d.totals.reach, comp.period_b?.totals?.reach) : null;
+
+  // Row 1 (8 cards): account & volume
+  document.getElementById('kpiGrid').innerHTML =
+    card('Followers',     latestAcct ? latestAcct.followers_count.toLocaleString() : '--', null) +
+    card('New Follows',   newFollows !== null ? (newFollows >= 0 ? '+' : '') + newFollows : '--', newFollowsChange) +
+    card('Profile Views', periodProfileViews !== null ? periodProfileViews.toLocaleString() : '--', profileViewsChange, '%') +
+    card('Posts',         d.posts_count, ch ? ch.posts : null) +
+    card('Avg Reach',     d.averages.reach.toLocaleString(),  ch?.avg_reach,   '%') +
+    card('Total Reach',   d.totals.reach.toLocaleString(),    totalReachChange, '%') +
+    card('Avg Views',     (d.averages.views ?? 0).toLocaleString(), ch?.avg_views,   '%') +
+    card('Total Views',   (d.totals.views   ?? 0).toLocaleString(), ch?.total_views, '%');
+
+  // Row 2 (5 cards): engagement rates in IG mobile-dashboard priority order
+  // Skip rate uses inverted color logic (down = green = better hook)
+  const r = d.engagement_rates || {};
+  document.getElementById('kpiGridRates').innerHTML =
+    card('Skip Rate',    fmtRate(r.skip_rate),    ch?.skip_rate_pp,    'pp', true,  'Reels') +
+    card('Share Rate',   fmtRate(r.share_rate),   ch?.share_rate_pp,   'pp') +
+    card('Like Rate',    fmtRate(r.like_rate),    ch?.like_rate_pp,    'pp') +
+    card('Save Rate',    fmtRate(r.save_rate),    ch?.save_rate_pp,    'pp') +
+    card('Comment Rate', fmtRate(r.comment_rate), ch?.comment_rate_pp, 'pp');
+}
+
+// --- Type Breakdown ---
+function renderTypeTable(data, comp) {
+  const tbody = document.querySelector('#typeTable tbody');
+  const types = Object.entries(data.by_type);
+  if (!types.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No data</td></tr>';
+    return;
+  }
+  // Per-type Avg Views: pulled from posts data so it works for all types
+  // (data.by_type doesn't track views; reel_stats only covers Reels).
+  const viewsByType = (posts) => {
+    const m = {};
+    for (const p of posts) {
+      const lt = p.milestones.lifetime;
+      if (!lt || !lt.views) continue;
+      (m[p.type] ||= { sum: 0, count: 0 });
+      m[p.type].sum += lt.views;
+      m[p.type].count++;
+    }
+    return m;
+  };
+  const avgViewsOf = (m, type) => { const v = m[type]; return v ? Math.round(v.sum / v.count) : null; };
+  const vA = viewsByType(data.posts);
+
+  // Compare mode: per-type deltas vs period B (rendered under each number,
+  // reusing the .kpi-change up/down colors). When not comparing, every delta is
+  // '' so the table renders exactly as before.
+  const bByType = comp?.period_b?.by_type || null;
+  const vB = comp ? viewsByType(comp.period_b.posts) : null;
+  const pct = (cur, prev) => (prev ? +(((cur - prev) / prev) * 100).toFixed(1) : null);
+  const delta = (change, suffix) => {
+    if (change == null) return '';
+    const isUp = change > 0, isDown = change < 0;
+    const cls = isUp ? 'up' : isDown ? 'down' : 'neutral';
+    const arrow = isUp ? '&uarr;' : isDown ? '&darr;' : '';
+    return `<div class="kpi-change ${cls}" style="font-size:12px;margin-top:2px">${arrow} ${Math.abs(change)}${suffix} vs prev</div>`;
+  };
+
+  tbody.innerHTML = types.map(([type, t]) => {
+    const aViews = avgViewsOf(vA, type);
+    const avgViews = aViews != null ? aViews.toLocaleString() : '--';
+    let postsD = '', reachD = '', viewsD = '';
+    if (comp) {
+      // Only show deltas when this type also existed in period B — otherwise
+      // there's no real baseline (a brand-new type isn't a "+N vs prev" gain).
+      const bt = bByType?.[type];
+      postsD = bt ? delta(t.count - bt.count, '') : '';
+      reachD = delta(pct(t.avg_reach, bt?.avg_reach), '%');
+      const bViews = avgViewsOf(vB, type);
+      viewsD = delta(aViews != null && bViews != null ? pct(aViews, bViews) : null, '%');
+    }
+    return `<tr>
+      <td><span class="type-badge ${type}">${type}</span></td>
+      <td>${t.count}${postsD}</td>
+      <td>${t.avg_reach.toLocaleString()}${reachD}</td>
+      <td>${avgViews}${viewsD}</td>
+    </tr>`;
+  }).join('');
+}
+
+// --- All Engagement Charts ---
+function renderAllEngCharts(data) {
+  const container = document.getElementById('engChartsContainer');
+  const posts = data.posts;
+  if (!posts.length) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Order matches IG mobile-dashboard priority: Views first (now universal in
+  // v22.0), then Reach + the four engagement counts, then Reel-only Skip Rate
+  // at the end as a Reels diagnostic.
+  const metrics = [
+    { key: 'views',     label: 'Views',     color: 'var(--pink)' },
+    { key: 'reach',     label: 'Reach',     color: 'var(--accent)' },
+    { key: 'likes',     label: 'Likes',     color: 'var(--green)' },
+    { key: 'comments',  label: 'Comments',  color: 'var(--orange)' },
+    { key: 'saves',     label: 'Saves',     color: 'var(--yellow)' },
+    { key: 'shares',    label: 'Shares',    color: 'var(--cyan)' },
+    { key: 'skip_rate', label: 'Skip Rate', color: 'var(--red)',  reelsOnly: true, suffix: '%', note: 'Reels only — lower is better' },
+  ];
+
+  const typeOrder = ['reel', 'carousel', 'photo'];
+
+  // For skip_rate (and any future percent metric), value is already a percent
+  // (e.g. 36.7) — format with one decimal. Counts use locale formatting.
+  // Filter out posts where the metric is null/missing rather than rendering
+  // bogus zero bars (pre-Phase-1 carousels lack views; some Reels have null
+  // skip_rate from Meta withholding it on low reach).
+  function renderBars(typePosts, key, label, color, suffix) {
+    const withVal = typePosts
+      .map(p => ({ p, v: p.milestones.lifetime?.[key] }))
+      .filter(x => x.v != null && x.v !== 0);
+    if (!withVal.length) {
+      return '<div style="color:var(--muted);font-size:13px;padding:16px 0">No data</div>';
+    }
+    const maxV = Math.max(...withVal.map(x => x.v), 1);
+    const fmt = suffix === '%' ? (v) => v.toFixed(1) + '%' : (v) => v.toLocaleString();
+    const bars = withVal.map(({ p, v }) => {
+      const h = Math.max((v / maxV) * 110, 2);
+      return `<div class="bar-group" style="min-width:36px">
+        <div style="display:flex;align-items:flex-end;width:100%;height:110px;justify-content:center">
+          <div class="bar" style="height:${h}px;width:70%;background:${color}"
+            data-tooltip="${escapeHtml(p.topic || p.posted_at)} — ${label}: ${fmt(v)}"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">${(p.posted_at || '').slice(5)}</div>
+      </div>`;
+    }).join('');
+    return `<div class="table-scroll"><div class="bar-chart" style="height:150px">${bars}</div></div>`;
+  }
+
+  container.innerHTML = metrics.map(({ key, label, color, reelsOnly, suffix, note }) => {
+    const types = (reelsOnly ? ['reel'] : typeOrder).filter(t => posts.some(p => p.type === t));
+    if (!types.length) return '';
+    const cols = types.map(type => {
+      const typePosts = posts.filter(p => p.type === type && p.milestones.lifetime);
+      return `<div>
+        <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">${type}</div>
+        ${renderBars(typePosts, key, label, color, suffix)}
+      </div>`;
+    }).join('');
+    const noteHtml = note ? `<span style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px">${note}</span>` : '';
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="card-title">${label}${noteHtml}</div>
+      <div class="eng-charts-grid" style="grid-template-columns:repeat(${types.length},1fr)">${cols}</div>
+    </div>`;
+  }).join('');
+}
+
+// --- Followers Chart ---
+function showFollowerTip(event, date, val) {
+  const tip = document.getElementById('followersTip');
+  if (!tip) return;
+  tip.textContent = `${date}: ${val} followers`;
+  tip.style.display = 'block'; // must show before measuring offsetWidth
+  const chart = document.getElementById('followersChart');
+  const rect = chart.getBoundingClientRect();
+  let left = event.clientX - rect.left + 12;
+  let top = event.clientY - rect.top - 40;
+  if (left + tip.offsetWidth > rect.width) left = event.clientX - rect.left - tip.offsetWidth - 12;
+  if (top < 0) top = event.clientY - rect.top + 12;
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+
+function hideFollowerTip() {
+  const tip = document.getElementById('followersTip');
+  if (tip) tip.style.display = 'none';
+}
+
+function renderFollowersChart(data) {
+  const card = document.getElementById('followersCard');
+  const acct = data.account || {};
+  // Respect the selected date range. The API returns the full account history
+  // (the absolute "Followers" KPI needs the latest count regardless of range),
+  // so filter to the period here — the same window the KPIs use (line ~540) —
+  // instead of always plotting all-time growth.
+  const from = data.period?.from, to = data.period?.to;
+  const dates = Object.keys(acct).sort()
+    .filter(d => (!from || d >= from) && (!to || d <= to));
+  if (dates.length < 2) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  const vals = dates.map(d => acct[d].followers_count);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const midV = Math.round((minV + maxV) / 2);
+  const range = maxV - minV || 1;
+  // Size the SVG coordinate system to the container's real pixel box so the
+  // chart fills the full width. A fixed 600-wide viewBox left big side gutters
+  // because the default preserveAspectRatio centered its narrower aspect inside
+  // the wide div. Matching the box aspect keeps the dots circular (scale ≈ 1:1).
+  const chartEl = document.getElementById('followersChart');
+  const W = Math.max(Math.round(chartEl.clientWidth) || 600, 320);
+  const H = Math.round(chartEl.clientHeight) || 160;
+  const PL = 58, PR = 10, PT = 10, PB = 25;
+  const cw = W - PL - PR, ch = H - PT - PB;
+
+  const xPos = (i) => PL + (i / Math.max(dates.length - 1, 1)) * cw;
+  const yPos = (v) => PT + ch - ((v - minV) / range) * ch;
+
+  const midY = yPos(midV);
+  const baseY = H - PB;
+
+  // Axis lines and gridlines
+  const axes = `
+    <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${baseY}" stroke="#2a2a2a" stroke-width="1"/>
+    <line x1="${PL}" y1="${baseY}" x2="${W - PR}" y2="${baseY}" stroke="#2a2a2a" stroke-width="1"/>
+    <line x1="${PL}" y1="${PT}" x2="${W - PR}" y2="${PT}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="3,4"/>
+    <line x1="${PL}" y1="${midY.toFixed(1)}" x2="${W - PR}" y2="${midY.toFixed(1)}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="3,4"/>`;
+
+  // Y-axis labels
+  const yLabels = `
+    <text x="${PL - 5}" y="${PT}" fill="var(--muted)" font-size="10" text-anchor="end" dominant-baseline="middle">${maxV.toLocaleString()}</text>
+    <text x="${PL - 5}" y="${midY.toFixed(1)}" fill="var(--muted)" font-size="10" text-anchor="end" dominant-baseline="middle">${midV.toLocaleString()}</text>
+    <text x="${PL - 5}" y="${baseY}" fill="var(--muted)" font-size="10" text-anchor="end" dominant-baseline="middle">${minV.toLocaleString()}</text>`;
+
+  // X-axis labels: up to 5 evenly spaced
+  const maxLabels = Math.min(dates.length, 5);
+  const step = Math.max(1, Math.floor((dates.length - 1) / (maxLabels - 1)));
+  const xLabelIdxs = new Set();
+  for (let i = 0; i < dates.length; i += step) xLabelIdxs.add(i);
+  xLabelIdxs.add(dates.length - 1);
+  const xLabels = [...xLabelIdxs].map(i => {
+    const x = xPos(i).toFixed(1);
+    const anchor = i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle';
+    return `<text x="${x}" y="${H - 5}" fill="var(--muted)" font-size="10" text-anchor="${anchor}">${dates[i].slice(5)}</text>`;
+  }).join('');
+
+  const points = dates.map((d, i) => `${xPos(i).toFixed(1)},${yPos(vals[i]).toFixed(1)}`).join(' ');
+
+  const dotsSvg = dates.map((d, i) => {
+    const cx = xPos(i).toFixed(1);
+    const cy = yPos(vals[i]).toFixed(1);
+    return `<circle cx="${cx}" cy="${cy}" r="4" fill="var(--accent2)" stroke="var(--card)" stroke-width="1.5" style="cursor:pointer"
+      onmouseover="showFollowerTip(event,'${d.slice(5)}','${vals[i].toLocaleString()}')"
+      onmouseout="hideFollowerTip()"/>`;
+  }).join('');
+
+  const tipEl = document.getElementById('followersTip');
+  document.getElementById('followersChart').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">
+      ${axes}${yLabels}${xLabels}
+      <polyline points="${points}" fill="none" stroke="var(--accent2)" stroke-width="2" stroke-linejoin="round"/>
+      ${dotsSvg}
+    </svg>`;
+  // Re-insert tooltip div (innerHTML wipes it)
+  document.getElementById('followersChart').appendChild(tipEl || (() => {
+    const d = document.createElement('div');
+    d.id = 'followersTip';
+    d.style.cssText = 'display:none;position:absolute;background:#1e1e1e;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;pointer-events:none;z-index:100;white-space:nowrap;color:var(--text)';
+    return d;
+  })());
+}
+
+
+// --- Milestone Tables (Volume + Rates) ---
+function renderMilestoneTable(data) {
+  const ages = ['day_1', 'day_3', 'day_7', 'day_30', 'lifetime'];
+  const avgByAge = data.by_age;
+
+  // ----- Empty-state handling for both tables -----
+  if (!data.posts.length) {
+    const empty = '<tr><td colspan="8" class="empty-state">No snapshot data yet. Data accumulates with each daily cron run.</td></tr>';
+    document.querySelector('#milestoneTableVolume tbody').innerHTML = empty;
+    document.querySelector('#milestoneTableVolume tfoot').innerHTML = '';
+    document.querySelector('#milestoneTableRates tbody').innerHTML = empty;
+    document.querySelector('#milestoneTableRates tfoot').innerHTML = '';
+    return;
+  }
+
+  // Shared helper used by BOTH the Volume table (Reach/Eng vs avg) and the
+  // Rates table (each rate vs its by_age avg). Renders ` ±N%` next to a
+  // value, colored vs the period average for the post type:
+  //   - invert=false (default, all volume + 4 of 5 rates): up = green
+  //   - invert=true  (skip_rate only):                     down = green
+  // Threshold ±10% suppresses noise. postsCount<2 hides delta — comparing
+  // a single post against itself is meaningless.
+  function pct(val, avgVal, postsCount, invert = false) {
+    if (val == null || avgVal == null || avgVal === 0 || postsCount < 2) return '';
+    const d = Math.round(((val - avgVal) / avgVal) * 100);
+    const sign = d > 0 ? '+' : '';
+    const goodDir = invert ? d < -10 : d >  10;
+    const badDir  = invert ? d >  10 : d < -10;
+    const color = goodDir ? 'var(--green)' : badDir ? 'var(--red)' : 'var(--muted)';
+    return ` <span style="color:${color};font-size:11px">${sign}${d}%</span>`;
+  }
+
+  // ===== Table A — Volume by Age (V / R / E) =====
+  // V is Reels-only (shown as `--` for Carousel/Photo). E is the legacy
+  // aggregate eng rate retained as a single at-a-glance health number.
+  function volumeCell(m, ageKey, postType) {
+    if (!m) return '<td class="ms-na">--</td>';
+    const avg = avgByAge[ageKey]?.[postType];
+    const postsCount = avg?.posts_with_data ?? 0;
+    const aboveAvg = avg && m.reach > avg.avg_reach;
+    const belowAvg = avg && m.reach < avg.avg_reach * 0.7;
+    const cls = aboveAvg ? 'ms-above' : belowAvg ? 'ms-below' : '';
+    const isReel = postType === 'reel';
+    const viewsHtml = isReel
+      ? `<span class="reach">${(m.views || 0).toLocaleString()}</span><br>`
+      : '';
+    return `<td class="${cls}"><div class="ms-cell">
+      ${viewsHtml}
+      <span class="reach">${m.reach.toLocaleString()}</span>${pct(m.reach, avg?.avg_reach, postsCount)}<br>
+      <span class="eng">${m.eng_rate.toFixed(1)}%</span>${pct(m.eng_rate, avg?.avg_eng, postsCount)}
+    </div></td>`;
+  }
+
+  // Per-row label column showing what the stacked numbers mean for this row
+  function volumeLabel(postType) {
+    return postType === 'reel'
+      ? `<td class="ms-label">V<br>R<br>E</td>`
+      : `<td class="ms-label">R<br>E</td>`;
+  }
+
+  document.querySelector('#milestoneTableVolume tbody').innerHTML = data.posts.map(p =>
+    `<tr>
+      <td><strong>${(p.posted_at || '').slice(5)}</strong> ${escapeHtml((p.topic || '').slice(0, 30))}</td>
+      <td><span class="type-badge ${escapeHtml(p.type)}">${escapeHtml(p.type)}</span></td>
+      ${ages.map(a => volumeCell(p.milestones[a], a, p.type)).join('')}
+      ${volumeLabel(p.type)}
+    </tr>`
+  ).join('');
+
+  const types = [...new Set(data.posts.map(p => p.type))]
+    .filter(type => ages.some(ageKey => avgByAge[ageKey]?.[type]))
+    .sort();
+
+  document.querySelector('#milestoneTableVolume tfoot').innerHTML = types.length ? types.map(type => {
+    const isReel = type === 'reel';
+    const avgCells = ages.map(ageKey => {
+      const avg = avgByAge[ageKey]?.[type];
+      if (!avg) return '<td class="ms-na">--</td>';
+      // Period avg views: not in by_age (which tracks reach/eng/saves only),
+      // so compute from posts of this type with this milestone present.
+      const viewSamples = data.posts
+        .filter(p => p.type === type && p.milestones[ageKey]?.views)
+        .map(p => p.milestones[ageKey].views);
+      const avgViews = viewSamples.length ? Math.round(viewSamples.reduce((a,b)=>a+b,0) / viewSamples.length) : null;
+      const viewsHtml = isReel && avgViews != null
+        ? `<span class="reach">${avgViews.toLocaleString()}</span><br>`
+        : (isReel ? `<span class="ms-na">--</span><br>` : '');
+      return `<td><div class="ms-cell" style="opacity:0.65;font-size:13px">
+        ${viewsHtml}
+        <span class="reach">${avg.avg_reach.toLocaleString()}</span><br>
+        <span class="eng">${avg.avg_eng.toFixed(1)}%</span>
+        <br><span style="color:var(--muted);font-size:11px">${avg.posts_with_data} posts</span>
+      </div></td>`;
+    }).join('');
+    return `<tr style="border-top:2px solid var(--border)">
+      <td colspan="2" style="padding:12px 10px;color:var(--muted);font-size:12px;font-weight:600">
+        Avg <span class="type-badge ${escapeHtml(type)}" style="font-size:11px">${escapeHtml(type)}</span>
+      </td>
+      ${avgCells}
+      ${volumeLabel(type)}
+    </tr>`;
+  }).join('') : '';
+
+  // ===== Table B — Engagement Rates by Age (5 rates per cell) =====
+  // Uses module-level RATES config + the shared `pct` helper above.
+  function ratesCell(m, ageKey, postType) {
+    if (!m || !m.rates) return '<td class="ms-na">--</td>';
+    const avgRates = avgByAge[ageKey]?.[postType]?.avg_rates;
+    const postsCount = avgByAge[ageKey]?.[postType]?.posts_with_data ?? 0;
+    const lines = RATES
+      .filter(r => !r.reelsOnly || postType === 'reel')
+      .map(r => {
+        const v = m.rates[r.key];
+        const a = avgRates ? avgRates[r.key] : null;
+        const text = v == null ? '--' : v.toFixed(2) + '%';
+        return `<span>${text}</span>${pct(v, a, postsCount, r.invert)}`;
+      })
+      .join('<br>');
+    return `<td><div class="ms-cell" style="font-size:12px;line-height:1.5">${lines}</div></td>`;
+  }
+
+  // Row labels derived from RATES (single source of truth) — `short` field
+  // doubles as both the column-cell label (when re-enabled) and this label.
+  function ratesLabel(postType) {
+    const labels = RATES
+      .filter(r => !r.reelsOnly || postType === 'reel')
+      .map(r => r.short);
+    return `<td class="ms-label" style="font-size:11px">${labels.join('<br>')}</td>`;
+  }
+
+  document.querySelector('#milestoneTableRates tbody').innerHTML = data.posts.map(p =>
+    `<tr>
+      <td><strong>${(p.posted_at || '').slice(5)}</strong> ${escapeHtml((p.topic || '').slice(0, 30))}</td>
+      <td><span class="type-badge ${escapeHtml(p.type)}">${escapeHtml(p.type)}</span></td>
+      ${ages.map(a => ratesCell(p.milestones[a], a, p.type)).join('')}
+      ${ratesLabel(p.type)}
+    </tr>`
+  ).join('');
+
+  // Period-avg footer row per type for Table B
+  document.querySelector('#milestoneTableRates tfoot').innerHTML = types.length ? types.map(type => {
+    const avgCells = ages.map(ageKey => {
+      const avgRates = avgByAge[ageKey]?.[type]?.avg_rates;
+      if (!avgRates) return '<td class="ms-na">--</td>';
+      const lines = RATES
+        .filter(r => !r.reelsOnly || type === 'reel')
+        .map(r => {
+          const v = avgRates[r.key];
+          const text = v == null ? '--' : v.toFixed(2) + '%';
+          return `<span>${text}</span>`;
+        })
+        .join('<br>');
+      return `<td><div class="ms-cell" style="opacity:0.65;font-size:12px;line-height:1.5">${lines}</div></td>`;
+    }).join('');
+    return `<tr style="border-top:2px solid var(--border)">
+      <td colspan="2" style="padding:12px 10px;color:var(--muted);font-size:12px;font-weight:600">
+        Avg <span class="type-badge ${escapeHtml(type)}" style="font-size:11px">${escapeHtml(type)}</span>
+      </td>
+      ${avgCells}
+      ${ratesLabel(type)}
+    </tr>`;
+  }).join('') : '';
+}
+
+// --- KEYWORDS ---
+let editingIndex = -1;
+
+async function loadRules() {
+  const [rulesRes, logRes] = await Promise.all([
+    fetch('/api/rules'),
+    fetch('/api/log')
+  ]);
+  const rules = await rulesRes.json();
+  const log = await logRes.json();
+  const list = document.getElementById('rulesList');
+
+  // Count successful DMs per keyword
+  const dmCounts = {};
+  for (const [key, val] of Object.entries(log)) {
+    const status = typeof val === 'object' ? (val.status || 'sent') : 'sent';
+    if (status !== 'sent') continue;
+    const keyword = key.split(':')[1];
+    if (keyword) dmCounts[keyword] = (dmCounts[keyword] || 0) + 1;
+  }
+
+  if (!rules.length) {
+    list.innerHTML = '<div class="empty-state">No keyword automations yet. Add one to get started.</div>';
+  } else {
+    list.innerHTML = rules.map((r, i) => {
+      const count = dmCounts[r.keyword] || 0;
+      return `
+      <div class="rule-card">
+        <div class="rule-keyword">${escapeHtml(r.keyword)}</div>
+        <div class="rule-body">
+          <div style="font-size:12px;color:var(--muted)">Responds with:</div>
+          <div class="rule-message">${escapeHtml(r.message)}</div>
+          <div style="margin-top:8px;font-size:13px;color:${count ? 'var(--accent2)' : 'var(--muted)'}">
+            ${count ? count + ' DM' + (count > 1 ? 's' : '') + ' sent' : 'No DMs sent yet'}
+          </div>
+        </div>
+        <div class="rule-actions">
+          <div class="toggle ${r.enabled !== false ? 'on' : ''}" onclick="toggleRule(${i})"></div>
+          <button class="btn" onclick="editRule(${i})">Edit</button>
+          <button class="btn danger" onclick="deleteRule(${i})">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  loadGlobalReplies();
+}
+
+// --- Global comment replies ---
+let globalReplies = [];
+
+async function loadGlobalReplies() {
+  try {
+    const res = await fetch('/api/replies');
+    if (!res.ok) throw new Error(res.status);
+    globalReplies = await res.json();
+  } catch (e) {
+    console.error('Failed to load replies:', e);
+    globalReplies = [];
+  }
+  renderGlobalReplies();
+}
+
+function renderGlobalReplies() {
+  const list = document.getElementById('globalRepliesList');
+  const hint = document.getElementById('globalRepliesHint');
+  list.innerHTML = globalReplies.map((r, i) => `
+    <div class="reply-row">
+      <input type="text" value="${escapeHtml(r)}" oninput="globalReplies[${i}]=this.value" placeholder="e.g. 已私訊你啦！📩">
+      <button class="btn-icon" type="button" onclick="removeGlobalReply(${i})" title="Remove">✕</button>
+    </div>`).join('');
+  hint.textContent = globalReplies.length > 1
+    ? `One of these ${globalReplies.length} replies will be picked at random after each successful DM.`
+    : globalReplies.length === 1 ? 'This reply will be posted publicly after each successful DM.' : '';
+}
+
+function addGlobalReply() {
+  globalReplies.push('');
+  renderGlobalReplies();
+  const inputs = document.querySelectorAll('#globalRepliesList input');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function removeGlobalReply(i) {
+  globalReplies.splice(i, 1);
+  renderGlobalReplies();
+}
+
+async function saveGlobalReplies() {
+  const inputs = document.querySelectorAll('#globalRepliesList input');
+  const replies = [...inputs].map(el => el.value.trim()).filter(Boolean);
+  try {
+    const res = await fetch('/api/replies', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ replies })
+    });
+    if (!res.ok) throw new Error(res.status);
+    globalReplies = replies;
+    renderGlobalReplies();
+    const status = document.getElementById('repliesSaveStatus');
+    status.style.display = 'inline';
+    setTimeout(() => { status.style.display = 'none'; }, 2000);
+  } catch (e) {
+    console.error('Failed to save replies:', e);
+    alert('Failed to save replies. Please try again.');
+  }
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function openModal(index = -1) {
+  editingIndex = index;
+  if (index >= 0) {
+    document.getElementById('modalTitle').textContent = 'Edit Keyword Automation';
+    fetch('/api/rules').then(r => r.json()).then(rules => {
+      document.getElementById('kwInput').value = rules[index].keyword;
+      document.getElementById('msgInput').value = rules[index].message;
+    });
+  } else {
+    document.getElementById('modalTitle').textContent = 'Add Keyword Automation';
+    document.getElementById('kwInput').value = '';
+    document.getElementById('msgInput').value = '';
+  }
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  editingIndex = -1;
+}
+
+async function saveRule() {
+  const keyword = document.getElementById('kwInput').value.trim().toUpperCase();
+  const message = document.getElementById('msgInput').value.trim();
+  if (!keyword || !message) { window.alert('Keyword and message are required'); return; }
+  const method = editingIndex >= 0 ? 'PUT' : 'POST';
+  const url = editingIndex >= 0 ? `/api/rules/${editingIndex}` : '/api/rules';
+  await fetch(url, {
+    method, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, message, postIds: [], enabled: true })
+  });
+  closeModal();
+  loadRules();
+}
+
+async function toggleRule(index) {
+  const rules = await (await fetch('/api/rules')).json();
+  rules[index].enabled = rules[index].enabled === false ? true : false;
+  await fetch(`/api/rules/${index}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rules[index])
+  });
+  loadRules();
+}
+
+async function deleteRule(index) {
+  if (!confirm('Delete this keyword automation?')) return;
+  await fetch(`/api/rules/${index}`, { method: 'DELETE' });
+  loadRules();
+}
+
+function editRule(index) { openModal(index); }
+
+// --- DM LOG ---
+async function loadLog() {
+  const logRes = await fetch('/api/log');
+  const log = await logRes.json();
+
+  // Normalise every entry into a consistent object.
+  // Effective status is derived from (status, delivery):
+  //   failed              → failed
+  //   sent + delivery=read      → read
+  //   sent + delivery=delivered → delivered
+  //   sent + delivery=pending   → pending
+  //   sent + delivery=untracked → legacy   (record predates webhook tracking)
+  //   sent + delivery missing   → legacy   (older record, no field at all)
+  logEntries = Object.entries(log).map(([key, val]) => {
+    const [userId, keywordFromKey, mediaId] = key.split(':');
+    const isObj = typeof val === 'object';
+    const baseStatus = isObj ? (val.status || 'sent') : 'sent';
+    const delivery = isObj ? (val.delivery || null) : null;
+    const timestamp = isObj ? (val.sent_at || val.failed_at || '') : val;
+    let effectiveStatus;
+    if (baseStatus === 'failed') effectiveStatus = 'failed';
+    else if (delivery === 'read') effectiveStatus = 'read';
+    else if (delivery === 'delivered') effectiveStatus = 'delivered';
+    else if (delivery === 'pending') effectiveStatus = 'pending';
+    else effectiveStatus = 'legacy';
+    return {
+      key,
+      status: effectiveStatus,
+      username:        isObj ? (val.username || userId) : userId,
+      keyword:         isObj ? (val.keyword || keywordFromKey) : keywordFromKey,
+      post_date:       isObj ? (val.post_date || '') : '',
+      post_type:       isObj ? (val.post_type || '') : '',
+      delivered_at:    isObj ? (val.delivered_at || '') : '',
+      read_at:         isObj ? (val.read_at || '') : '',
+      failure_reason:  isObj ? (val.failure_reason || '') : '',
+      failure_category: isObj ? (val.failure_category || '') : '',
+      timestamp,
+    };
+  });
+
+  if (!logEntries.length) {
+    document.getElementById('logContent').innerHTML = '<div class="empty-state">No DM activity yet.</div>';
+    return;
+  }
+
+  renderLog();
+}
+
+function sortLog(col) {
+  if (logSort.col === col) {
+    logSort.dir = logSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    logSort.col = col;
+    logSort.dir = col === 'time' ? 'desc' : 'asc';
+  }
+  renderLog();
+}
+
+function applyLogFilter(field, value) {
+  logFilters[field] = value;
+  renderLog();
+}
+
+function renderLog() {
+  // --- Apply filters ---
+  let rows = logEntries.filter(e => {
+    if (logFilters.username) {
+      const q = logFilters.username.toLowerCase();
+      if (!e.username.toLowerCase().includes(q)) return false;
+    }
+    if (logFilters.status !== 'all' && e.status !== logFilters.status) return false;
+    if (logFilters.post_type !== 'all' && e.post_type !== logFilters.post_type) return false;
+    return true;
+  });
+
+  // --- Apply sort ---
+  const dir = logSort.dir === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    let vA, vB;
+    switch (logSort.col) {
+      case 'user':      vA = a.username;    vB = b.username;    break;
+      case 'keyword':   vA = a.keyword;     vB = b.keyword;     break;
+      case 'post_date': vA = a.post_date;   vB = b.post_date;   break;
+      case 'type':      vA = a.post_type;   vB = b.post_type;   break;
+      case 'status':    vA = a.status;      vB = b.status;      break;
+      case 'reason':    vA = a.failure_reason; vB = b.failure_reason; break;
+      default:          vA = a.timestamp;   vB = b.timestamp;   break; // 'time'
+    }
+    return vA < vB ? -dir : vA > vB ? dir : 0;
+  });
+
+  // --- Arrow indicator helper ---
+  function arrow(col) {
+    if (logSort.col !== col) return '<span class="sort-arrow">↕</span>';
+    return `<span class="sort-arrow">${logSort.dir === 'asc' ? '↑' : '↓'}</span>`;
+  }
+
+  // --- Build table ---
+  const summaryText = rows.length !== logEntries.length
+    ? `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Showing ${rows.length} of ${logEntries.length} entries</div>`
+    : `<div style="font-size:13px;color:var(--muted);margin-bottom:10px">${logEntries.length} entr${logEntries.length === 1 ? 'y' : 'ies'}</div>`;
+
+  const thead = `<thead>
+    <tr>
+      <th class="sortable" onclick="sortLog('user')">User ${arrow('user')}</th>
+      <th class="sortable" onclick="sortLog('keyword')">Keyword ${arrow('keyword')}</th>
+      <th class="sortable" onclick="sortLog('post_date')">Post Date ${arrow('post_date')}</th>
+      <th class="sortable" onclick="sortLog('type')">Type ${arrow('type')}</th>
+      <th class="sortable" onclick="sortLog('status')">Status ${arrow('status')}</th>
+      <th class="sortable" onclick="sortLog('reason')">Failure Reason ${arrow('reason')}</th>
+      <th class="sortable" onclick="sortLog('time')">Time ${arrow('time')}</th>
+    </tr>
+    <tr class="log-filter-row">
+      <td><input type="text" placeholder="Search user…" value="${escapeHtml(logFilters.username)}" oninput="applyLogFilter('username',this.value)"></td>
+      <td></td>
+      <td></td>
+      <td>
+        <select onchange="applyLogFilter('post_type',this.value)">
+          <option value="all" ${logFilters.post_type==='all'?'selected':''}>All types</option>
+          <option value="reel" ${logFilters.post_type==='reel'?'selected':''}>Reel</option>
+          <option value="carousel" ${logFilters.post_type==='carousel'?'selected':''}>Carousel</option>
+          <option value="photo" ${logFilters.post_type==='photo'?'selected':''}>Photo</option>
+        </select>
+      </td>
+      <td>
+        <select onchange="applyLogFilter('status',this.value)">
+          <option value="all"       ${logFilters.status==='all'      ?'selected':''}>All</option>
+          <option value="failed"    ${logFilters.status==='failed'   ?'selected':''}>Failed</option>
+          <option value="pending"   ${logFilters.status==='pending'  ?'selected':''}>Pending</option>
+          <option value="delivered" ${logFilters.status==='delivered'?'selected':''}>Delivered</option>
+          <option value="read"      ${logFilters.status==='read'     ?'selected':''}>Read</option>
+          <option value="legacy"    ${logFilters.status==='legacy'   ?'selected':''}>Legacy</option>
+        </select>
+      </td>
+      <td></td>
+      <td></td>
+    </tr>
+  </thead>`;
+
+  const tbody = rows.length ? rows.map(e => {
+    const usernameHtml = /^\d+$/.test(e.username)
+      ? `<span style="color:var(--muted)">ID:…${e.username.slice(-6)}</span>`
+      : `@${escapeHtml(e.username)}`;
+    const postDateHtml = e.post_date ? e.post_date.slice(5) : '--';
+    const postTypeHtml = e.post_type
+      ? `<span class="type-badge ${escapeHtml(e.post_type)}">${escapeHtml(e.post_type)}</span>`
+      : '--';
+    const sLabel = STATUS_LABELS[e.status] || { label: e.status, tip: '' };
+    const statusHtml = `<span class="status-badge ${e.status}" title="${escapeHtml(sLabel.tip)}">${sLabel.label}</span>`;
+    const reasonHtml = e.failure_reason
+      ? `<span class="failure-reason" title="${escapeHtml(e.failure_category)}">${escapeHtml(e.failure_reason)}</span>`
+      : '<span style="color:#444">—</span>';
+    // Time column shows the most progressed event we know about
+    const eventTime = e.read_at || e.delivered_at || e.timestamp;
+    const timeHtml = eventTime ? new Date(eventTime).toLocaleString() : '--';
+    return `<tr class="tr-${e.status}">
+      <td>${usernameHtml}</td>
+      <td><span class="type-badge reel">${escapeHtml(e.keyword)}</span></td>
+      <td>${postDateHtml}</td>
+      <td>${postTypeHtml}</td>
+      <td>${statusHtml}</td>
+      <td>${reasonHtml}</td>
+      <td style="white-space:nowrap">${timeHtml}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" class="empty-state">No entries match the current filters.</td></tr>`;
+
+  document.getElementById('logContent').innerHTML =
+    summaryText +
+    `<div class="table-scroll"><table class="log-table">${thead}<tbody>${tbody}</tbody></table></div>`;
+}
+
+// --- Live API fallback: convert /api/metrics format to summary format ---
+function convertLiveToSummary(liveData) {
+  const posts = liveData.map(p => ({
+    id: '',
+    posted_at: p.date,
+    type: p.type,
+    topic: p.topic || '',
+    milestones: {
+      day_1: null, day_3: null, day_7: null, day_30: null,
+      lifetime: {
+        reach: p.reach || 0, likes: p.likes || 0, comments: p.comments || 0,
+        shares: p.shares || 0, saves: p.saves || 0, eng_rate: p.reach
+          ? +((( p.likes + p.comments + p.saves + p.shares) / p.reach) * 100).toFixed(2)
+          : 0,
+      }
+    }
+  }));
+  const totals = { reach: 0, likes: 0, comments: 0, shares: 0, saves: 0 };
+  for (const p of posts) {
+    const lt = p.milestones.lifetime;
+    totals.reach += lt.reach; totals.likes += lt.likes;
+    totals.comments += lt.comments; totals.shares += lt.shares; totals.saves += lt.saves;
+  }
+  const n = posts.length || 1;
+  const engRate = totals.reach ? ((totals.likes + totals.comments + totals.saves + totals.shares) / totals.reach) * 100 : 0;
+  return {
+    period: { from: '', to: '' }, posts_count: posts.length, totals,
+    averages: { reach: Math.round(totals.reach / n), likes: Math.round(totals.likes / n), comments: Math.round(totals.comments / n), shares: Math.round(totals.shares / n), saves: Math.round(totals.saves / n), engagement_rate: +engRate.toFixed(2) },
+    by_type: {}, by_age: {}, reel_stats: null, account: {}, posts,
+  };
+}
+
+// Re-fit the followers chart on resize — its viewBox is sized from the
+// container's pixel width at render time, so a resize would otherwise leave it
+// stretched or gutter-ed until the next data load. Debounced to avoid thrash.
+let _followersResizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(_followersResizeTimer);
+  _followersResizeTimer = setTimeout(() => {
+    if (summaryData) renderFollowersChart(summaryData);
+  }, 150);
+});
+
+// --- Init ---
+initDates();
+loadDashboard();
+</script>
+</body>
+</html>

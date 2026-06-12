@@ -1,0 +1,9 @@
+node_modules/
+.env
+metrics/*.log
+data/sent-dms.json
+data/failed-dms.json
+data/comment-replies.json
+data/snapshots.json
+data/followers-cache.json
+metrics-output.csv

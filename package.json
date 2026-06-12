@@ -1,0 +1,15 @@
+{
+  "name": "ig-automations",
+  "version": "1.0.0",
+  "description": "Instagram automations: metrics tracker + comment keyword → DM webhook",
+  "type": "module",
+  "scripts": {
+    "start": "node webhook/server.js",
+    "metrics": "node metrics/tracker.js",
+    "snapshot": "node metrics/snapshot.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}

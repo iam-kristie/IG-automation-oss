@@ -1,0 +1,14 @@
+[
+  {
+    "keyword": "GUIDE",
+    "postIds": [],
+    "message": "Here's the guide you asked for: https://example.com/your-guide\nThanks for the support — follow for more! 🫶",
+    "enabled": false
+  },
+  {
+    "keyword": "TEMPLATE",
+    "postIds": [],
+    "message": "Download the template here: https://example.com/your-template\nThanks! 🤗",
+    "enabled": false
+  }
+]
