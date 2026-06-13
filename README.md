@@ -76,10 +76,15 @@ Open the dashboard and add rules under **Keyword Automations**, or edit `data/ke
 
 Two services from the same repo:
 
-1. **Webhook server** — build `Dockerfile`, mount a volume at `/data`, set `DATA_DIR=/data` and the env vars above.
-2. **Daily snapshot cron** — build `Dockerfile.cron` as a cron-scheduled service. It just curls `POST /api/snapshots/run` on the server (set `WEBHOOK_URL` and `ADMIN_PASSWORD`). This indirection exists because some hosts (incl. Railway) don't allow two services to mount the same volume.
+1. **Webhook server** — point the service at `Dockerfile`, mount a volume at `/data`, set `DATA_DIR=/data` and the env vars above.
+2. **Daily snapshot cron** — point a second service at `Dockerfile.cron` as a cron-scheduled service. It just curls `POST /api/snapshots/run` on the server (set `WEBHOOK_URL` and `ADMIN_PASSWORD`). This indirection exists because some hosts (incl. Railway) don't allow two services to mount the same volume.
 
-The included GitHub Actions workflow (`.github/workflows/docker.yml`) builds and pushes both images to GHCR on push to `main`.
+Railway (and most PaaS — Render, Fly.io, etc.) builds the image straight from the Dockerfile in the repo, so there's nothing to publish first. To build and run it yourself instead:
+
+```bash
+docker build -t ig-automations -f Dockerfile .
+docker run -p 3100:3100 --env-file .env -v "$PWD/data:/data" -e DATA_DIR=/data ig-automations
+```
 
 ## API notes & quirks (hard-won)
 
