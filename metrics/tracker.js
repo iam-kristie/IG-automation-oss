@@ -5,16 +5,18 @@
 // Usage: node metrics/tracker.js [--csv path/to/output.csv]
 
 import { createClient } from "../lib/instagram.js";
+import { getAccessToken } from "../lib/token.js";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
-const ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
-if (!ACCESS_TOKEN) {
-  console.error("Error: IG_ACCESS_TOKEN environment variable is required");
+if (!getAccessToken()) {
+  console.error("Error: no IG access token available — set IG_ACCESS_TOKEN or restore DATA_DIR/ig-token.json");
   process.exit(1);
 }
 
-const ig = createClient(ACCESS_TOKEN);
+// Read-only CSV export — deliberately does not refresh; leave rotation to the
+// server/cron path so a manual export can't race it.
+const ig = createClient(getAccessToken);
 
 // CSV output path — default or from --csv flag
 const csvFlagIdx = process.argv.indexOf("--csv");

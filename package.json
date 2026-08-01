@@ -7,7 +7,7 @@
     "start": "node webhook/server.js",
     "metrics": "node metrics/tracker.js",
     "snapshot": "node metrics/snapshot.js",
-    "test": "node --test test/"
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "express": "^5.1.0"

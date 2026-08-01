@@ -6,4 +6,7 @@ data/failed-dms.json
 data/comment-replies.json
 data/snapshots.json
 data/followers-cache.json
+# Holds a live IG access token — never commit
+data/ig-token.json
+data/ig-token.json.tmp
 metrics-output.csv

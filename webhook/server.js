@@ -7,6 +7,7 @@
 import express from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createClient } from "../lib/instagram.js";
+import { getAccessToken, getTokenStatus, maybeRefreshToken } from "../lib/token.js";
 import { matchKeyword } from "../lib/keyword-matcher.js";
 import { loadKeywordRules, saveKeywordRules, DATA_DIR } from "../config.js";
 import { loadSnapshots, saveSnapshots, recordSnapshot, recordAccountSnapshot, computeSummary, computeComparison } from "../lib/snapshots.js";
@@ -18,13 +19,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PORT = process.env.PORT || 3100;
 const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
-const ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 const APP_SECRET = process.env.IG_APP_SECRET;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
-if (!VERIFY_TOKEN || !ACCESS_TOKEN) {
+if (!VERIFY_TOKEN) {
+  console.error("Error: WEBHOOK_VERIFY_TOKEN environment variable is required");
+  process.exit(1);
+}
+
+// IG_ACCESS_TOKEN is only a seed — once the token store in DATA_DIR holds a
+// self-refreshed token, the env var may be absent or stale. Fail only if
+// neither source has one.
+if (!getAccessToken()) {
   console.error(
-    "Error: WEBHOOK_VERIFY_TOKEN and IG_ACCESS_TOKEN environment variables are required"
+    "Error: no IG access token available — set IG_ACCESS_TOKEN or restore DATA_DIR/ig-token.json"
   );
   process.exit(1);
 }
@@ -65,7 +73,8 @@ function requireAuth(req, res, next) {
   res.status(401).send("Authentication required");
 }
 
-const ig = createClient(ACCESS_TOKEN);
+// Getter, not a value: maybeRefreshToken() can swap the token mid-process.
+const ig = createClient(getAccessToken);
 
 // --- Dedup store (in-memory with disk persistence) ---
 const SENT_LOG_PATH = resolve(DATA_DIR, "sent-dms.json");
@@ -386,6 +395,22 @@ app.get("/api/snapshots/compare", requireAuth, (req, res) => {
   res.json(computeComparison(store, a_from, a_to, b_from, b_to));
 });
 
+// --- Token status / manual refresh (auth-protected) ---
+// Never returns the token itself, only its expiry metadata.
+app.get("/api/token/status", requireAuth, (_req, res) => {
+  res.json(getTokenStatus());
+});
+
+app.post("/api/token/refresh", requireAuth, async (_req, res) => {
+  const result = await maybeRefreshToken({ force: true });
+  // refreshed-but-not-extended is not a success: Meta re-issued the token
+  // without moving the expiry (it declines to extend tokens under 24h old).
+  // 202 rather than 200 so a caller checking status codes doesn't read it as
+  // "expiry is now 60 days out".
+  const code = !result.refreshed ? 500 : result.extended ? 200 : 202;
+  res.status(code).json({ ...result, status: getTokenStatus() });
+});
+
 // --- Snapshot trigger (auth-protected, called by Railway cron) ---
 // The snapshotRunning mutex blocks concurrent runs but does not throttle
 // back-to-back runs. The cron fires hourly (~144 IG-API calls/day at 6
@@ -403,6 +428,11 @@ app.post("/api/snapshots/run", requireAuth, async (_req, res) => {
   console.log(`[${today}] Snapshot triggered via API`);
 
   try {
+    // Piggyback the token refresh on the hourly cron. It's a no-op until the
+    // token is within a week of expiring, and it never throws — a refresh
+    // failure must not cost us the snapshot.
+    await maybeRefreshToken();
+
     const store = loadSnapshots();
 
     // Account-level snapshot
@@ -579,7 +609,19 @@ app.post("/webhook", async (req, res) => {
 
 initSentLog();
 initFailLog();
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Dashboard: http://localhost:${PORT}`);
+
+  // Refresh on boot as well as hourly, so a freshly pasted seed token gets its
+  // expiry recorded straight away rather than waiting for the next cron tick.
+  await maybeRefreshToken();
+  const status = getTokenStatus();
+  if (status.expired) {
+    console.error("  IG token has EXPIRED — re-authorize in the Meta App Dashboard and update IG_ACCESS_TOKEN");
+  } else if (status.days_remaining !== null) {
+    console.log(`  IG token valid for ${status.days_remaining} more days (expires ${status.expires_at.slice(0, 10)})`);
+  } else {
+    console.log("  IG token expiry unknown — will be recorded after the first successful refresh");
+  }
 });

@@ -6,15 +6,16 @@
 // Usage: node metrics/snapshot.js
 
 import { createClient } from "../lib/instagram.js";
+import { getAccessToken, maybeRefreshToken } from "../lib/token.js";
 import { loadSnapshots, saveSnapshots, recordSnapshot, recordAccountSnapshot } from "../lib/snapshots.js";
 
-const ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
-if (!ACCESS_TOKEN) {
-  console.error("Error: IG_ACCESS_TOKEN environment variable is required");
+if (!getAccessToken()) {
+  console.error("Error: no IG access token available — set IG_ACCESS_TOKEN or restore DATA_DIR/ig-token.json");
   process.exit(1);
 }
 
-const ig = createClient(ACCESS_TOKEN);
+await maybeRefreshToken();
+const ig = createClient(getAccessToken);
 
 async function run() {
   const today = new Date().toISOString().slice(0, 10);

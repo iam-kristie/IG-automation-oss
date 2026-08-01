@@ -19,6 +19,7 @@ ig-automations/
 ├── config.js                ← keyword rules loading + DATA_DIR setup
 ├── lib/
 │   ├── instagram.js         ← IG Graph API client (insights, comments, DMs)
+│   ├── token.js             ← token store + auto-refresh (see "Access tokens")
 │   ├── keyword-matcher.js   ← fuzzy keyword matching
 │   └── snapshots.js         ← snapshot storage + age-milestone math
 ├── metrics/
@@ -31,14 +32,16 @@ ig-automations/
 ├── data/                    ← JSON persistence (gitignored runtime files)
 │   └── keyword-rules.json   ← keyword → message rules (seed/example)
 └── test/
-    └── keyword-matcher.test.js
+    ├── keyword-matcher.test.js
+    ├── token.test.js         ← token precedence + refresh-timing logic
+    └── token-refresh.test.js ← refresh round-trip against a stubbed API
 ```
 
 ## Setup
 
 ### 1. Meta app
 
-1. Create a Meta app with Instagram Login for Business; generate a long-lived access token (`IGAA...`, valid 60 days — refresh periodically).
+1. Create a Meta app with Instagram Login for Business; generate a long-lived access token (`IGAA...`, valid 60 days). The server refreshes it for you from then on, see [Access tokens](#access-tokens).
 2. Required permissions: `instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `instagram_manage_messages`.
 3. Set the app to **Live** mode.
 4. Subscribe these webhook fields (App Dashboard → Webhooks → Instagram):
@@ -65,12 +68,36 @@ Open the dashboard and add rules under **Keyword Automations**, or edit `data/ke
 
 | Variable | Purpose |
 |----------|---------|
-| `IG_ACCESS_TOKEN` | Instagram Login API token (`IGAA...`) |
+| `IG_ACCESS_TOKEN` | Instagram Login API token (`IGAA...`). A **seed** only — the live token is kept in `DATA_DIR/ig-token.json` and refreshed automatically. See [Access tokens](#access-tokens) |
 | `IG_APP_ID` / `IG_APP_SECRET` | Meta app credentials (secret used to verify webhook signatures) |
 | `WEBHOOK_VERIFY_TOKEN` | Webhook verification token (must match Meta dashboard) |
 | `ADMIN_PASSWORD` | Dashboard basic-auth password (required in production) |
 | `DATA_DIR` | Persistent data directory (default `./data`; set to your volume mount in production) |
 | `PORT` | Server port (default 3100) |
+
+## Access tokens
+
+Instagram Login tokens last 60 days and can only be refreshed **while still valid**. Once one lapses there is no recovery: you have to re-authorize by hand in the Meta App Dashboard. This bit us in production, so the server now rolls the expiry forward on its own.
+
+**Where the token lives.** Most PaaS environments (Railway included) make env vars immutable at runtime, so a refreshed token cannot be written back to `IG_ACCESS_TOKEN`. The live token is therefore kept in `DATA_DIR/ig-token.json` on your persistent volume, and `IG_ACCESS_TOKEN` acts only as a seed.
+
+**Which token wins.** The store records the seed it descends from, so:
+
+- You change `IG_ACCESS_TOKEN` → the new value wins. This is the escape hatch: pasting a fresh token always takes effect.
+- You leave `IG_ACCESS_TOKEN` alone → the refreshed token in the store wins. Without this, every restart would roll back to a stale seed.
+
+**When it refreshes.** On server boot, and at the start of every `POST /api/snapshots/run` (i.e. on your cron schedule), but only once the token is within 7 days of expiry. Attempts are rate-limited to one per hour, and a failed refresh is logged rather than thrown, so it can never cost you a snapshot.
+
+**Endpoints** (basic-auth protected; neither returns the token itself):
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/token/status` | Expiry, days remaining, last refresh/attempt, last error |
+| `POST /api/token/refresh` | Force a refresh. `200` = expiry moved, `202` = re-issued but expiry unchanged (see below), `500` = failed |
+
+**Rotating manually.** Set `IG_ACCESS_TOKEN` to the new value everywhere (all services, plus local `.env`) and redeploy. On boot the server notices the seed changed and reseeds the store.
+
+> **If `ig-token.json` is ever corrupted**, the server falls back to the `IG_ACCESS_TOKEN` seed — which may itself be long expired. It shouts about this in the logs, preserves the bad file as `ig-token.json.corrupt` so you can recover the token by hand, and reports `store_was_corrupt: true` from `/api/token/status`.
 
 ## Deployment (Railway example)
 
@@ -94,12 +121,16 @@ docker run -p 3100:3100 --env-file .env -v "$PWD/data:/data" -e DATA_DIR=/data i
 - `/me/followers` does not exist for `IGAA` tokens (deprecated 2018) — you cannot check whether a given user follows you.
 - `reposts` is surfaced in IG's mobile insights UI but not exposed to the Graph API.
 - If a DM echo never arrives (>5 min), the recipient has likely disabled "Allow access to messages" — the DM was silently dropped. The dashboard keeps these as `pending` with an explanatory tooltip; the deferred public reply is never posted in that case.
+- **A successful token refresh does not always extend the expiry.** Meta declines to extend tokens under 24 hours old, and it signals this by returning `200` with a *new* `access_token` whose expiry is unchanged — not by returning an error. Treat "refresh succeeded" as insufficient: compare the old and new expiry, or your token can lapse behind a log full of successful refreshes. `lib/token.js` does this and reports `extended: false`.
+- **Refreshing does not invalidate the previous token.** Both remain usable until their own expiry, so a rotation can't strand in-flight requests.
 
 ## Testing
 
 ```bash
-npm test   # keyword matcher unit tests
+npm test   # 45 tests: keyword matching, token precedence, refresh round-trip
 ```
+
+> `node --test test/` (passing a directory) fails with `MODULE_NOT_FOUND` on Node 24, so `npm test` uses the glob `test/*.test.js`.
 
 ## License
 
