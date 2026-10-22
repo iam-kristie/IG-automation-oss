@@ -2,6 +2,12 @@
 
 Self-hosted Instagram automation for creators: daily metrics snapshots, a comment-keyword → auto-DM responder, and an analytics dashboard. Built on the Instagram Graph API (Instagram Login / `IGAA` tokens), Node.js + Express, zero database — everything persists to JSON files.
 
+## Node.js security baseline (22 October 2026)
+
+Use Node.js **22.23.4 or newer in the 22.x line** for the server and local Node scripts. Run `nvm install && nvm use` from the repository root before installing dependencies. The server image is pinned to `node:22.23.4-slim` for the [October 2026 Node.js security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
+
+Rebuild and redeploy the server image to update an existing service, then verify `node --version` inside the running container. Keep the existing certificate-store settings and TLS checks. The curl-only cron image has no Node runtime.
+
 ## Features
 
 - **Comment keyword → DM** — Meta webhook receives comment events, fuzzy-matches keywords (typo-tolerant, emoji-stripping, mixed CJK/English), and sends the commenter a private reply with your link/material. Optionally posts a public comment reply *after* the DM is confirmed delivered.
